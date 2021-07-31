@@ -1,0 +1,10 @@
+# Binaries for programs and plugins
+main
+nats.v
+*.exe
+*.exe~
+*.so
+*.dylib
+*.dll
+*.dSYM/
+run.sh
