@@ -72,7 +72,7 @@ pub mut:
 	echo     bool // may set only if INFO.proto > 0
 mut:
 	lastid    int
-	handlers  map[string]SubjectHandler
+	handlers  shared map[string]SubjectHandler
 	inch      chan string
 	inmsg     chan MSG
 	info      json2.Any
@@ -82,23 +82,38 @@ mut:
 
 type SubjectHandler = fn (MSG)
 
+// Close connection.
 pub fn (mut n Nats) close() ? {
 	n.c.close() ?
 }
 
-pub fn (mut n Nats) sub(subject string, cb SubjectHandler) ?int {
-	n.c.write('sub $subject $n.handlers.len\n'.bytes()) ?
-	n.handlers[n.lastid.str()] = cb
+// Subscribe to subject.
+pub fn (mut n Nats) sub(subject string, cb SubjectHandler) ?string {
+	mut l := 0
+	rlock n.handlers {
+		l = n.handlers.len
+	}
+	n.c.write('sub $subject $l\n'.bytes()) ?
+	lock n.handlers {
+		n.handlers[n.lastid.str()] = cb
+	}
 	defer {
 		n.lastid++
 	}
-	return n.lastid
+	return n.lastid.str()
+}
+
+// Unsubscribe to subject.
+pub fn (mut n Nats) usub(subid string) ? {
+	n.c.write('unsub $subid\n'.bytes()) ?
+	lock n.handlers {
+		n.handlers.delete(subid)
+	}
 }
 
 fn (mut nats Nats) reader() {
 	log('Start reader')
 	for {
-		// println(nats.c.read_line())
 		nats.c.wait_for_read() or {
 			lerr('Error wait socket read $err')
 			return
@@ -108,7 +123,7 @@ fn (mut nats Nats) reader() {
 			args := s.split(' ')
 			mut m := MSG{}
 			m.size = strconv.atoi(args.pop().replace('\r\n', '')) or {
-				log(err)
+				log(err.msg)
 				0
 			}
 			m.subid = args.pop()
@@ -142,11 +157,14 @@ fn (mut nats Nats) reader() {
 fn (mut nats Nats) router() {
 	log('Start router')
 	for {
-		// println("<read")
 		m := <-nats.inmsg
-
-		fnn := nats.handlers[m.subid]
-		fnn(m)
+		log('<route $m.subject')
+		rlock nats.handlers {
+			if m.subid in nats.handlers {
+				fnn := nats.handlers[m.subid]
+				fnn(m)
+			}
+		}
 
 		log(m.str())
 	}
@@ -156,11 +174,10 @@ fn (mut nats Nats) router() {
 fn (mut nats Nats) worker() {
 	log('Start worker')
 	for {
-		// println("<read")
 		s := <-nats.inch
 		if s == ('PING\r\n') {
 			log('pong')
-			nats.c.write('pong\n'.bytes())
+			nats.c.write('pong\n'.bytes()) or { lerr('write error: $err') }
 		} else {
 			log(s)
 		}
@@ -168,11 +185,12 @@ fn (mut nats Nats) worker() {
 	log('Exit worker')
 }
 
+// Connect to nats server.
 pub fn (mut n Nats) connect(url string, user string, pass string) ? {
 	mut c := net.dial_tcp(url) or { return error('Connect error') }
 
 	c.set_read_timeout(net.infinite_timeout)
-	c.set_write_deadline(net.no_deadline)
+	// c.set_write_deadline(net.no_deadline)
 
 	c.wait_for_read() ?
 
@@ -206,7 +224,7 @@ pub fn (mut n Nats) connect(url string, user string, pass string) ? {
 		n.inmsg = chan MSG{}
 		n.inch = chan string{}
 
-		n.handlers = map[string]SubjectHandler{}
+		// n.handlers = map[string]SubjectHandler{}
 		go n.worker()
 		go n.router()
 		go n.reader()
