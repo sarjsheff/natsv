@@ -1,5 +1,5 @@
 module natsv
-
+// Client lib for nats.io.
 import net
 import x.json2
 import strconv

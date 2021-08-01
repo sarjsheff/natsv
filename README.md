@@ -1,5 +1,7 @@
 # module natsv
 
+ Client lib for [NATS](https://nats.io). 
+
 ## Contents
 - [MSG](#MSG)
 - [Nats](#Nats)
@@ -76,4 +78,4 @@ fn (mut n Nats) connect(url string, user string, pass string) ?
 
 [[Return to contents]](#Contents)
 
-#### Powered by vdoc. Generated on: 1 Aug 2021 13:43:55
+#### Powered by vdoc. Generated on: 1 Aug 2021 13:47:33
