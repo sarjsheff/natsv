@@ -1,8 +1,10 @@
 module natsv
+
 // Client lib for nats.io.
 import net
 import x.json2
 import strconv
+// import os
 
 // struct INFO {
 // 	server_id     string
@@ -82,33 +84,35 @@ mut:
 
 type SubjectHandler = fn (MSG)
 
-// Close connection.
-pub fn (mut n Nats) close() ? {
-	n.c.close() ?
+fn (mut nats Nats) router() {
+	log('Start router')
+	for {
+		m := <-nats.inmsg
+		log('<route $m.subject $m.subid')
+		rlock nats.handlers {
+			if m.subid in nats.handlers {
+				fnn := nats.handlers[m.subid]
+				fnn(m)
+			}
+		}
+
+		log(m.str())
+	}
+	log('Exit router')
 }
 
-// Subscribe to subject.
-pub fn (mut n Nats) sub(subject string, cb SubjectHandler) ?string {
-	mut l := 0
-	rlock n.handlers {
-		l = n.handlers.len
+fn (mut nats Nats) worker() {
+	log('Start worker')
+	for {
+		s := <-nats.inch
+		if s == ('PING\r\n') {
+			log('pong')
+			nats.c.write('pong\n'.bytes()) or { lerr('write error: $err') }
+		} else {
+			log(s)
+		}
 	}
-	n.c.write('sub $subject $l\n'.bytes()) ?
-	lock n.handlers {
-		n.handlers[n.lastid.str()] = cb
-	}
-	defer {
-		n.lastid++
-	}
-	return n.lastid.str()
-}
-
-// Unsubscribe to subject.
-pub fn (mut n Nats) usub(subid string) ? {
-	n.c.write('unsub $subid\n'.bytes()) ?
-	lock n.handlers {
-		n.handlers.delete(subid)
-	}
+	log('Exit worker')
 }
 
 fn (mut nats Nats) reader() {
@@ -118,6 +122,7 @@ fn (mut nats Nats) reader() {
 			lerr('Error wait socket read $err')
 			return
 		}
+		// println('read')
 		mut s := nats.c.read_line()
 		if s.starts_with('MSG ') {
 			args := s.split(' ')
@@ -147,42 +152,18 @@ fn (mut nats Nats) reader() {
 				}
 			}
 			nats.inmsg <- mut m
+		} else if s.len == 0 {
+			panic('Connection close')
+			return
+		} else if s.starts_with('-ERR') {
+			print(s)
+		} else if s.starts_with('+OK') {
+			// print(s)
 		} else {
 			nats.inch <- s
 		}
 	}
 	log('Exit reader')
-}
-
-fn (mut nats Nats) router() {
-	log('Start router')
-	for {
-		m := <-nats.inmsg
-		log('<route $m.subject')
-		rlock nats.handlers {
-			if m.subid in nats.handlers {
-				fnn := nats.handlers[m.subid]
-				fnn(m)
-			}
-		}
-
-		log(m.str())
-	}
-	log('Exit router')
-}
-
-fn (mut nats Nats) worker() {
-	log('Start worker')
-	for {
-		s := <-nats.inch
-		if s == ('PING\r\n') {
-			log('pong')
-			nats.c.write('pong\n'.bytes()) or { lerr('write error: $err') }
-		} else {
-			log(s)
-		}
-	}
-	log('Exit worker')
 }
 
 // Connect to nats server.
@@ -209,7 +190,7 @@ pub fn (mut n Nats) connect(url string, user string, pass string) ? {
 			con['pass'] = pass
 		}
 		c.wait_for_write() ?
-		c.write(('CONNECT ' + con.str() + '\n').bytes()) ?
+		c.write(('CONNECT ' + con.str() + '\r\n').bytes()) ?
 		c.wait_for_read() ?
 		ret := c.read_line()
 		log(ret)
@@ -231,4 +212,38 @@ pub fn (mut n Nats) connect(url string, user string, pass string) ? {
 	} else {
 		return error('Connect error in protocol')
 	}
+}
+
+// Close connection.
+pub fn (mut n Nats) close() ? {
+	n.c.close() ?
+}
+
+// Subscribe to subject.
+pub fn (mut n Nats) sub(subject string, cb SubjectHandler) ?string {
+	mut l := n.lastid
+	// rlock n.handlers {
+	// 	l = n.handlers.len
+	// }
+	n.c.write('SUB $subject $l\r\n'.bytes()) ?
+	lock n.handlers {
+		n.handlers[n.lastid.str()] = cb
+	}
+	defer {
+		n.lastid++
+	}
+	return n.lastid.str()
+}
+
+// Unsubscribe to subject.
+pub fn (mut n Nats) usub(subid string) ? {
+	n.c.write('UNSUB $subid\r\n'.bytes()) ?
+	lock n.handlers {
+		n.handlers.delete(subid)
+	}
+}
+
+// Publish message.
+pub fn (mut n Nats) publish(subject string, msg string) ? {
+	n.c.write('PUB $subject $msg.len\r\n$msg\r\n'.bytes()) ?
 }

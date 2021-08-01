@@ -25,23 +25,26 @@ fn main() {
 			return
 		}
 		println('Subscribe')
-		nats.sub('>', fn (m natsv.MSG) {
+		subid := nats.sub('>', fn (m natsv.MSG) {
 			println('>>>> $m.subject')
 		}) or {
 			lerr('subscribe err $err')
 			return
 		}
-		subid := nats.sub('hikmqtt.Int.>', fn (m natsv.MSG) {
-			println('<<<<')
+		time.sleep(5 * time.second)
+		nats.usub(subid) or { println('$err') }
+
+		nats.sub('vlang.tick.test', fn (m natsv.MSG) {
+			println('<<<< $m.msg')
 		}) or {
 			lerr('sub err $err')
 			return
 		}
-		time.sleep(5 * time.second)
-		nats.usub(subid) or { println('$err') }
-		
+		nats.publish('vlang.tick.test', '1234567890'.repeat(10000)) or { println('$err') }
+
 		for {
-			time.sleep(5 * time.second)	
+			nats.publish('vlang.tick.test', 'tick') or { println('$err') }
+			time.sleep(5 * time.second)
 			// print(".")
 		}
 		println('Close')

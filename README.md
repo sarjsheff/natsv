@@ -1,14 +1,15 @@
 # module natsv
 
- Client lib for [NATS](https://nats.io). 
+ Client lib for nats.io. 
 
 ## Contents
 - [MSG](#MSG)
 - [Nats](#Nats)
+  - [connect](#connect)
   - [close](#close)
   - [sub](#sub)
   - [usub](#usub)
-  - [connect](#connect)
+  - [publish](#publish)
 
 ## MSG
 ```v
@@ -46,6 +47,14 @@ mut:
 
 [[Return to contents]](#Contents)
 
+## connect
+```v
+fn (mut n Nats) connect(url string, user string, pass string) ?
+```
+ Connect to nats server. 
+
+[[Return to contents]](#Contents)
+
 ## close
 ```v
 fn (mut n Nats) close() ?
@@ -70,12 +79,12 @@ fn (mut n Nats) usub(subid string) ?
 
 [[Return to contents]](#Contents)
 
-## connect
+## publish
 ```v
-fn (mut n Nats) connect(url string, user string, pass string) ?
+fn (mut n Nats) publish(subject string, msg string) ?
 ```
- Connect to nats server. 
+ Publish message. 
 
 [[Return to contents]](#Contents)
 
-#### Powered by vdoc. Generated on: 1 Aug 2021 13:47:33
+#### Powered by vdoc. Generated on: 1 Aug 2021 14:54:49
