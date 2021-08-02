@@ -34,6 +34,9 @@ pub mut:
 	pedantic bool
 	echo     bool
 mut:
+	url       string
+	user      string
+	pass      string
 	lastid    int
 	handlers  shared map[string]SubjectHandler
 	inch      chan string
@@ -87,4 +90,4 @@ fn (mut n Nats) publish(subject string, msg string) ?
 
 [[Return to contents]](#Contents)
 
-#### Powered by vdoc. Generated on: 1 Aug 2021 14:54:49
+#### Powered by vdoc. Generated on: 2 Aug 2021 11:14:31

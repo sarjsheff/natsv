@@ -73,6 +73,9 @@ pub mut:
 	pedantic bool
 	echo     bool // may set only if INFO.proto > 0
 mut:
+	url       string
+	user      string
+	pass      string
 	lastid    int
 	handlers  shared map[string]SubjectHandler
 	inch      chan string
@@ -107,7 +110,7 @@ fn (mut nats Nats) worker() {
 		s := <-nats.inch
 		if s == ('PING\r\n') {
 			log('pong')
-			nats.c.write('pong\n'.bytes()) or { lerr('write error: $err') }
+			nats.c.write('PONG\r\n'.bytes()) or { lerr('write error: $err') }
 		} else {
 			log(s)
 		}
@@ -153,7 +156,7 @@ fn (mut nats Nats) reader() {
 			}
 			nats.inmsg <- mut m
 		} else if s.len == 0 {
-			panic('Connection close')
+			lerr('Connection close')
 			return
 		} else if s.starts_with('-ERR') {
 			print(s)
